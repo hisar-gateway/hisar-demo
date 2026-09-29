@@ -1,0 +1,106 @@
+# Hisar API Gateway — free edition, single-host demo stack
+#
+#   docker compose up -d
+#   open http://localhost:8080        admin console
+#   open http://localhost:3000/health gateway
+#
+# The gateway runs unlicensed ("restricted mode"): max 5 routes, 10 requests/s
+# per route, licensed modules off. Upload a licence from System → License in
+# the admin console to lift the caps — no restart, same installation.
+#
+# Not a production layout: no Traefik edge, no plane isolation, no replicas,
+# ephemeral JWT keys (every restart logs everyone out). See docs/user-guide.md
+# §3 for the production topology.
+
+name: hisar-demo
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    restart: unless-stopped
+
+  surrealdb:
+    image: surrealdb/surrealdb:v3.0.5
+    user: "0:0"
+    command: start --user ${DATABASE_USER:-root} --pass ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env} --bind 0.0.0.0:8000 surrealkv:///data/database
+    volumes:
+      - surrealdb_data:/data
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Optional: request/audit/security logs behind the dashboard. Delete this
+  # service (and the `elasticsearch` entry under apigateway.depends_on) to save
+  # ~1 GB RAM; the gateway keeps running, the dashboard's log panels stay empty.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.1
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  apigateway:
+    image: ghcr.io/hisar-gateway/apigateway-backend:${HISAR_VERSION:-latest}
+    # Images are published for linux/amd64 only; this lets arm64 hosts (Apple
+    # Silicon) pull them and run under emulation instead of failing the pull.
+    platform: linux/amd64
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Europe/Istanbul}
+    depends_on:
+      redis:
+        condition: service_healthy
+      surrealdb:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+        required: false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/hisar-gateway/apigateway-frontend:${HISAR_VERSION:-latest}
+    platform: linux/amd64
+    ports:
+      - "8080:80"
+    depends_on:
+      apigateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  surrealdb_data:
+  elasticsearch_data:
