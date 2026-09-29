@@ -72,14 +72,15 @@ kurulumda ve yeniden başlatmadan devreye girer.
 | Süre sınırı | yok | lisans süresi, 60 gün önceden uyarı |
 | Etkinleştirme | pakette | `.lic` dosyasını **Sistem → Lisans** ekranından yükleyin — anında geçerli |
 
-Tavanı aşan istek `429 Lisans RPS limiti aşıldı (rota başına …)` alır; altıncı
-rota `403 Route limiti aşıldı: 5/5` ile reddedilir.
+Tavanı aşan istek `429 License RPS limit exceeded (… req/s per route — restricted mode)` alır; altıncı
+rota `403 Route limit exceeded: 5/5` ile reddedilir.
 
 ## Gereksinimler
 
 - Docker 24+ ve Compose v2 (Linux, macOS veya WSL2'li Windows)
 - x86-64 host (imajlar `linux/amd64`; Apple Silicon'da öykünmeyle çalışır, daha yavaştır)
-- 8080 (yönetim konsolu) ve 3000 (ağ geçidi) portları boş
+- 8080 (yönetim konsolu) ve 3000 (ağ geçidi) portları boş ya da `.env`
+  içinde başka portlar seçilmiş olmalı (bkz. [Portlar](#portlar))
 - Tüm yığın için yaklaşık 2 GB RAM; Elasticsearch olmadan 1 GB daha az
 
 ## Başlatma
@@ -109,6 +110,20 @@ parolayla giriş yapın; parolayı hesap menüsü → **Profil** ekranından de�
 | Yönetim konsolu | http://localhost:8080        |
 | Ağ geçidi       | http://localhost:3000        |
 | Sağlık          | http://localhost:3000/health |
+
+### Portlar
+
+8080 ya da 3000 başka bir uygulamada mı? `.env` içinde başka host portları
+seçip yeniden başlatın; yukarıdaki adresler de buna göre değişir:
+
+```bash
+HISAR_UI_PORT=18080        # yönetim konsolu → http://localhost:18080
+HISAR_GATEWAY_PORT=13000   # ağ geçidi       → http://localhost:13000
+```
+
+```bash
+docker compose up -d
+```
 
 ## İlk rota
 

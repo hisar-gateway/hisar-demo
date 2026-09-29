@@ -72,15 +72,16 @@ same installation and switched on without a restart.
 | Time limit | none | licence term, 60-day expiry warning |
 | Activation | included | upload the `.lic` file in **System → License** — takes effect at once |
 
-A request over the cap gets `429 Lisans RPS limiti aşıldı (rota başına …)`;
-the sixth route is refused with `403 Route limiti aşıldı: 5/5`.
+A request over the cap gets `429 License RPS limit exceeded (… req/s per route — restricted mode)`;
+the sixth route is refused with `403 Route limit exceeded: 5/5`.
 
 ## Requirements
 
 - Docker 24+ with Compose v2 (Linux, macOS or Windows with WSL2)
 - x86-64 host (the images are built for `linux/amd64`; Apple Silicon runs them
   under emulation, which works but is slower)
-- Ports 8080 (admin console) and 3000 (gateway) free
+- Ports 8080 (admin console) and 3000 (gateway) free, or other ports set in
+  `.env` (see [Ports](#ports))
 - About 2 GB of RAM for the whole stack, 1 GB less without Elasticsearch
 
 ## Start
@@ -110,6 +111,20 @@ from the log line; change it from the account menu → **Profile**.
 | Admin console | http://localhost:8080        |
 | Gateway       | http://localhost:3000        |
 | Health        | http://localhost:3000/health |
+
+### Ports
+
+Something else already on 8080 or 3000? Set other host ports in `.env` and
+start again — the URLs above follow:
+
+```bash
+HISAR_UI_PORT=18080        # admin console  → http://localhost:18080
+HISAR_GATEWAY_PORT=13000   # gateway        → http://localhost:13000
+```
+
+```bash
+docker compose up -d
+```
 
 ## First route
 
