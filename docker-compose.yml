@@ -1,0 +1,111 @@
+# Hisar API Gateway — free edition, single host
+#
+#   docker compose up -d
+#   docker compose logs apigateway | grep "INITIAL ADMIN"   # first admin password
+#   http://localhost:8080          admin console
+#   http://localhost:3000/health   gateway
+#
+# The gateway runs unlicensed: at most 5 routes and 10 requests/s per route,
+# licensed modules off. Upload a licence in the admin console under
+# Operations → License to lift the caps — same installation, no restart.
+#
+# An evaluation layout: one gateway, plain HTTP, no TLS edge, and a signing key
+# generated at start (restarting the gateway signs everyone out).
+
+name: hisar-demo
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    restart: unless-stopped
+
+  surrealdb:
+    image: surrealdb/surrealdb:v3.3.0
+    user: "0:0"
+    command: start --user ${DATABASE_USER:-root} --pass ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env} --bind 0.0.0.0:8000 surrealkv:///data/database
+    volumes:
+      - surrealdb_data:/data
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Request, audit and security logs behind the dashboard's log panels.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.1
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  apigateway:
+    image: ghcr.io/hisar-gateway/apigateway-backend:${HISAR_VERSION:-latest}
+    # Images are published for linux/amd64 only; on Apple silicon Docker
+    # Desktop runs them through Rosetta.
+    platform: linux/amd64
+    ports:
+      - "${HISAR_GATEWAY_PORT:-3000}:3000"   # host port: HISAR_GATEWAY_PORT in .env
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Europe/Istanbul}
+    volumes:
+      # GeoIP database uploaded in the console (Operations → System → Geo
+      # blocking), kept across image updates. The container runs as uid 1000.
+      - geoip_data:/app/geoip
+    depends_on:
+      redis:
+        condition: service_healthy
+      surrealdb:
+        condition: service_healthy
+      # Waits for Elasticsearch so the first logs reach it; starts anyway (with
+      # a warning) if Elasticsearch never becomes healthy.
+      elasticsearch:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/hisar-gateway/apigateway-frontend:${HISAR_VERSION:-latest}
+    platform: linux/amd64
+    ports:
+      - "${HISAR_UI_PORT:-8080}:80"   # host port: HISAR_UI_PORT in .env
+    depends_on:
+      apigateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  surrealdb_data:
+  elasticsearch_data:
+  geoip_data:
