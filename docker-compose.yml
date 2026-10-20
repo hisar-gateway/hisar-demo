@@ -92,6 +92,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    # Open files: every proxied request holds a client and an upstream socket.
+    # Docker >= 25 starts a container at a soft limit of 1024, which ran out
+    # near 500 concurrent proxied requests ("Too many open files", 502).
+    # One value = soft and hard: a hard limit above the runtime's own (rootless
+    # Docker, LXC) would stop the container from starting.
+    ulimits:
+      nofile: 65535
     restart: unless-stopped
 
   frontend:
