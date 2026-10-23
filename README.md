@@ -161,6 +161,20 @@ and reach the console through an SSH tunnel from your own computer:
 ssh -L 8080:127.0.0.1:8080 you@your-server    # then open http://localhost:8080
 ```
 
+**Client addresses behind a proxy.** The gateway counts failed sign-ins,
+bans and per-IP limits per client address, and the console's nginx passes the
+user's address on in `X-Forwarded-For`. The gateway reads that header only
+from the addresses in `TRUSTED_PROXIES` in `.env`; the bundle sets it to the
+console container's fixed address (`172.30.100.10` on the compose network
+`172.30.100.0/24` — `HISAR_NET_SUBNET` and `HISAR_UI_ADDRESS` in `.env` move
+them when that range is taken on your machine). If you put a reverse proxy of
+your own in front of the console or the gateway, add its address to the list,
+comma-separated, and run `docker compose up -d`. Never add the network's
+bridge gateway (`.1`). With the list empty, every console user shares the
+console container's address: five wrong passwords from anyone lock the console
+for everybody for 15 minutes, and the gateway log says so once an hour
+(`not in TRUSTED_PROXIES`).
+
 ## First route
 
 Every route is served at `http://localhost:3000/{application}/{service}/{route}`,

@@ -161,6 +161,20 @@ ve konsola kendi bilgisayarınızdan SSH tüneliyle ulaşın:
 ssh -L 8080:127.0.0.1:8080 siz@sunucunuz    # sonra http://localhost:8080 adresini açın
 ```
 
+**Proxy arkasındaki istemci adresleri.** Gateway başarısız girişleri,
+yasakları ve IP başına sınırları istemci adresine göre sayar; konsolun
+nginx'i kullanıcının adresini `X-Forwarded-For` ile iletir. Gateway bu
+başlığı yalnızca `.env`'deki `TRUSTED_PROXIES` listesindeki adreslerden
+okur; paket bunu konsol container'ının sabit adresine ayarlı getirir
+(compose ağı `172.30.100.0/24` üzerinde `172.30.100.10` — bu aralık
+makinenizde doluysa `.env`'deki `HISAR_NET_SUBNET` ve `HISAR_UI_ADDRESS`
+ile taşıyın). Konsolun ya da gateway'in önüne kendi ters proxy'nizi
+koyarsanız adresini listeye virgülle ekleyin ve `docker compose up -d`
+çalıştırın. Ağın köprü ağ geçidini (`.1`) asla eklemeyin. Liste boşken her
+konsol kullanıcısı konsol container'ının adresini paylaşır: herhangi
+birinden gelen beş yanlış parola konsolu herkes için 15 dakika kilitler ve
+gateway log'u bunu saatte bir söyler (`not in TRUSTED_PROXIES`).
+
 ## İlk rota
 
 Her rota `http://localhost:3000/{uygulama}/{servis}/{rota}` adresinde,

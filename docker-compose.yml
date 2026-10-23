@@ -106,10 +106,28 @@ services:
     platform: linux/amd64
     ports:
       - "${HISAR_UI_PORT:-8080}:80"   # host port: HISAR_UI_PORT in .env
+    networks:
+      default:
+        # A fixed address: the gateway reads the console's X-Forwarded-For
+        # from exactly this container (TRUSTED_PROXIES in .env), so every
+        # console user is counted on their own address.
+        ipv4_address: ${HISAR_UI_ADDRESS:-172.30.100.10}
     depends_on:
       apigateway:
         condition: service_healthy
     restart: unless-stopped
+
+# The compose network on a fixed subnet, so the console container can keep a
+# fixed address (above) and .env can name it in TRUSTED_PROXIES. If the range
+# is already taken on this machine (`docker compose up` stops with "Pool
+# overlaps with other one on this address space"), move it with
+# HISAR_NET_SUBNET and HISAR_UI_ADDRESS in .env — and keep TRUSTED_PROXIES in
+# step.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${HISAR_NET_SUBNET:-172.30.100.0/24}
 
 volumes:
   redis_data:
